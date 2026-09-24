@@ -101,3 +101,5 @@ window.addEventListener('keydown', (e) => {
 
 // AVISO INICIAL NO CONSOLE AO CARREGAR
 console.log("%c[PROJETO XR] Aplicação carregada! Clique no botão ou aperte ESPAÇO para testar o Passo 8.", "color: #00ffcc; font-weight: bold;");
+
+// .

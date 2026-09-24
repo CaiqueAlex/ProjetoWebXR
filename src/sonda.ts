@@ -58,3 +58,5 @@ export function exibirRelatorioNaTela(relatorio: RelatorioSonda): void {
 
   document.body.appendChild(div);
 }
+
+// .
