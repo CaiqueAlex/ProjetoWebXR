@@ -1,61 +1,103 @@
 import * as THREE from 'three';
-import { VRButton } from 'three/addons/webxr/VRButton.js';
-import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { XRScene } from './scene';
-import { setupControllers } from './controllers';
-import { setupARHitTest } from './ar';
+import { executarSondaCapacidades, exibirRelatorioNaTela } from './sonda';
 
-// --- Renderer ---
 const container = document.getElementById('app') as HTMLDivElement;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.xr.enabled = true; // habilita o loop WebXR
+renderer.xr.enabled = true;
 container.appendChild(renderer.domElement);
 
-// --- Cena ---
-const xr = new XRScene();
+const xrScene = new XRScene();
 
-// Órbita com o mouse no desktop (fora do modo imersivo)
-const orbit = new OrbitControls(xr.camera, renderer.domElement);
-orbit.target.set(0, 1.2, -1);
+const orbit = new OrbitControls(xrScene.camera, renderer.domElement);
+orbit.target.set(0, 1.10, -0.60);
 orbit.update();
 
-// --- Controllers XR ---
-const controllers = setupControllers(renderer, xr.scene, xr.interactive);
+executarSondaCapacidades().then((relatorio) => {
+  exibirRelatorioNaTela(relatorio);
+});
 
-// --- AR hit-test ---
-const arHitTest = setupARHitTest(renderer, xr.scene);
+// PASSO 9: HUD DE CUSTO
+const hudCusto = document.createElement('div');
+hudCusto.style.position = 'fixed';
+hudCusto.style.top = '10px';
+hudCusto.style.right = '10px';
+hudCusto.style.padding = '10px 14px';
+hudCusto.style.background = 'rgba(15, 15, 25, 0.9)';
+hudCusto.style.color = '#ffcc00';
+hudCusto.style.fontFamily = 'monospace';
+hudCusto.style.fontSize = '12px';
+hudCusto.style.borderRadius = '4px';
+hudCusto.style.zIndex = '9999';
+hudCusto.style.pointerEvents = 'none';
+document.body.appendChild(hudCusto);
 
-// --- Botões VR e AR ---
-document.body.appendChild(VRButton.createButton(renderer));
-document.body.appendChild(
-  ARButton.createButton(renderer, {
-    // Nada em requiredFeatures: uma feature exigida que o aparelho não tem
-    // desabilita o botão inteiro, e o aluno vê um botão morto sem saber por quê.
-    // Como opcional, a sessão sobe e a ausência fica observável.
-    requiredFeatures: [],
-    optionalFeatures: ['hit-test', 'local-floor', 'bounded-floor', 'dom-overlay'],
-    domOverlay: { root: document.body },
-  }),
-);
+// BOTAO DE ATALHO VISIVEL NA TELA PARA TESTE FACIL DO PASSO 8
+const btnTrocarPai = document.createElement('button');
+btnTrocarPai.innerText = 'Trocar Pai do Disjuntor (Passo 8)';
+btnTrocarPai.style.position = 'fixed';
+btnTrocarPai.style.bottom = '10px';
+btnTrocarPai.style.right = '10px';
+btnTrocarPai.style.padding = '10px 16px';
+btnTrocarPai.style.background = '#00ffcc';
+btnTrocarPai.style.color = '#000';
+btnTrocarPai.style.fontWeight = 'bold';
+btnTrocarPai.style.border = 'none';
+btnTrocarPai.style.borderRadius = '4px';
+btnTrocarPai.style.cursor = 'pointer';
+btnTrocarPai.style.zIndex = '9999';
+document.body.appendChild(btnTrocarPai);
 
-// --- Loop de animação (use setAnimationLoop, NÃO requestAnimationFrame) ---
+const ORCAMENTO_TETO_MS = 16.66;
 const clock = new THREE.Clock();
 
-renderer.setAnimationLoop((_timestamp, frame) => {
+renderer.setAnimationLoop(() => {
+  const tInicio = performance.now();
   const delta = clock.getDelta();
-  xr.update(delta);
-  controllers.update();
-  if (frame) arHitTest.update(frame);
-  renderer.render(xr.scene, xr.camera);
+
+  xrScene.update(delta);
+  renderer.render(xrScene.scene, xrScene.camera);
+
+  const tFim = performance.now();
+  const duracaoMs = tFim - tInicio;
+
+  hudCusto.innerHTML = `
+    <strong>[Orçamento de Custo - Passo 9]</strong><br/>
+    Tempo por Quadro: <b>${duracaoMs.toFixed(2)} ms</b><br/>
+    Teto Declarado: <b>${ORCAMENTO_TETO_MS} ms</b> (60 FPS)<br/>
+    Status: <span style="color: ${duracaoMs <= ORCAMENTO_TETO_MS ? '#00ffcc' : '#ff4444'}">
+      ${duracaoMs <= ORCAMENTO_TETO_MS ? 'DENTRO DO TETO' : 'ESTOURADO'}
+    </span>
+  `;
 });
 
-// --- Responsividade ---
-window.addEventListener('resize', () => {
-  xr.camera.aspect = window.innerWidth / window.innerHeight;
-  xr.camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+// LOGICA DE REPARENTAMENTO E CONSOLE DO PASSO 8
+const dispararTrocaDePai = () => {
+  const { posAntes, posDepois } = xrScene.trocarPaiDoDisjuntor();
+  const diff = posAntes.distanceTo(posDepois);
+
+  console.log("%c==================================================", "color: #ffcc00");
+  console.log("%c=== PASSO 8: DEMONSTRAÇÃO DE REPARENTAMENTO ===", "color: #00ffcc; font-weight: bold;");
+  console.log("Posição Global ANTES:", posAntes.x.toFixed(4), posAntes.y.toFixed(4), posAntes.z.toFixed(4));
+  console.log("Posição Global DEPOIS:", posDepois.x.toFixed(4), posDepois.y.toFixed(4), posDepois.z.toFixed(4));
+  console.log(`Diferença no Mundo           : ${diff.toFixed(6)} metros`);
+  console.log("%c==================================================", "color: #ffcc00");
+};
+
+// Evento no botão na tela
+btnTrocarPai.addEventListener('click', dispararTrocaDePai);
+
+// Evento na tecla Espaço
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    dispararTrocaDePai();
+  }
 });
+
+// AVISO INICIAL NO CONSOLE AO CARREGAR
+console.log("%c[PROJETO XR] Aplicação carregada! Clique no botão ou aperte ESPAÇO para testar o Passo 8.", "color: #00ffcc; font-weight: bold;");
